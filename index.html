@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>剪刀石頭布｜終極大對決</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;
+    background:radial-gradient(circle at top,#253b70,#10172d 65%);color:#f7f8ff;
+    display:flex;justify-content:center;padding:28px 16px}
+  .game{width:min(760px,100%);background:#ffffff12;border:1px solid #ffffff28;
+    border-radius:24px;padding:28px;box-shadow:0 20px 60px #0005;backdrop-filter:blur(10px)}
+  h1{text-align:center;margin:0 0 8px;font-size:clamp(25px,5vw,38px)}
+  .sub{text-align:center;color:#c7d4ff;margin:0 0 24px}
+  .panel{background:#101a35aa;border:1px solid #ffffff20;border-radius:16px;padding:18px;margin:16px 0}
+  label{display:block;margin:10px 0 6px;color:#dce5ff}
+  input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #61719d;
+    background:#0d1530;color:white;font-size:16px}
+  button{border:0;border-radius:12px;padding:12px 16px;font-size:16px;font-weight:700;
+    cursor:pointer;transition:.15s}
+  button:hover{transform:translateY(-2px);filter:brightness(1.08)}
+  button:disabled{opacity:.35;cursor:not-allowed;transform:none}
+  .primary{background:#8ca8ff;color:#101936;width:100%;margin-top:14px}
+  .score{display:flex;justify-content:space-around;text-align:center;gap:12px}
+  .score strong{display:block;font-size:34px;color:#a9bcff}
+  .score span{color:#cbd5f2}
+  .items,.choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .item{background:#28385f;color:white;border:1px solid #6276a8}
+  .item.selected{outline:3px solid #a9bcff;background:#40588e}
+  .choice{background:#edf1ff;color:#182344;font-size:19px;padding:18px 8px}
+  .choice span{display:block;font-size:30px;margin-bottom:5px}
+  .muted{color:#bdc9e8;font-size:14px}
+  #message{min-height:56px;line-height:1.6;text-align:center;font-size:17px}
+  #history{max-height:180px;overflow:auto;padding-left:22px;color:#d6def7;line-height:1.8}
+  .hidden{display:none!important}
+  .tag{display:inline-block;border-radius:99px;padding:4px 10px;background:#ffffff18;color:#dce5ff;font-size:13px}
+  @media(max-width:480px){.game{padding:20px 15px}.items{grid-template-columns:1fr}.score strong{font-size:28px}}
+</style>
+</head>
+<body>
+<main class="game">
+  <h1>✊ ✋ ✌️ 剪刀石頭布</h1>
+  <p class="sub">終極大對決・先取得 5 勝的人就是贏家！</p>
+
+  <section id="login" class="panel">
+    <h2>🧭 冒險者登入</h2>
+    <label for="playerName">冒險者名字</label>
+    <input id="playerName" placeholder="請輸入你的名字" maxlength="20">
+    <label for="equipment">你的裝備</label>
+    <input id="equipment" placeholder="例如：黃金鍵盤、魔法魔杖" maxlength="30">
+    <button class="primary" id="startBtn">開始冒險</button>
+  </section>
+
+  <section id="play" class="hidden">
+    <div class="panel">
+      <div id="welcome"></div>
+      <div class="score">
+        <div><span id="nameLabel">你</span><strong id="playerScore">0</strong><span>勝</span></div>
+        <div><span>電腦</span><strong id="computerScore">0</strong><span>勝</span></div>
+      </div>
+      <p class="muted" style="text-align:center">目前回合：<b id="round">1</b>　<span class="tag">目標：5 勝</span></p>
+    </div>
+
+    <div class="panel">
+      <h3>🎒 道具背包 <span class="muted">（每種道具限用一次）</span></h3>
+      <div class="items">
+        <button class="item" data-item="magic">🪄 必勝魔法<br><small>直接獲得一勝</small></button>
+        <button class="item" data-item="shield">🛡️ 防禦護盾<br><small>本回合輸了也不讓電腦得分</small></button>
+        <button class="item" data-item="crystal">🔮 透視水晶<br><small>先看見電腦的出拳</small></button>
+        <button class="item selected" data-item="none">不用道具</button>
+      </div>
+      <p id="itemStatus" class="muted">選擇本回合要使用的道具。</p>
+    </div>
+
+    <div class="panel">
+      <h3>選擇你的拳</h3>
+      <div class="choices">
+        <button class="choice" data-choice="剪刀"><span>✌️</span>剪刀</button>
+        <button class="choice" data-choice="石頭"><span>✊</span>石頭</button>
+        <button class="choice" data-choice="布"><span>✋</span>布</button>
+      </div>
+      <p id="message" aria-live="polite">先選擇道具，再出拳！</p>
+    </div>
+
+    <div class="panel">
+      <h3>📜 對戰紀錄</h3>
+      <ol id="history"><li>冒險開始，祝你好運！</li></ol>
+    </div>
+  </section>
+
+  <section id="result" class="panel hidden" aria-live="polite">
+    <h2>🌟 最終結果 🌟</h2>
+    <p id="finalMessage"></p>
+    <button class="primary" id="restartBtn">再玩一次</button>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const choices = ["剪刀","石頭","布"];
+  const icons = {"剪刀":"✌️","石頭":"✊","布":"✋"};
+  let name="", equipment="", player=0, computer=0, round=1, selected="none";
+  let used={magic:false,shield:false,crystal:false};
+
+  function show(id){$(id).classList.remove("hidden")}
+  function hide(id){$(id).classList.add("hidden")}
+  function update(){
+    $("playerScore").textContent=player;
+    $("computerScore").textContent=computer;
+    $("round").textContent=round;
+    $("nameLabel").textContent=name;
+    document.querySelectorAll(".item").forEach(btn=>{
+      const key=btn.dataset.item;
+      const spent=key!=="none" && used[key];
+      btn.disabled=!!spent;
+      btn.classList.toggle("selected",key===selected);
+    });
+    $("itemStatus").textContent=selected==="none"?"本回合不使用道具。":
+      ({magic:"必勝魔法：直接取得一勝！",shield:"防禦護盾：若本回合輸了，電腦不得分。",crystal:"透視水晶：出拳前會揭曉電腦的選擇。"}[selected]);
+  }
+  function log(text){
+    const li=document.createElement("li"); li.textContent=text;
+    $("history").prepend(li);
+  }
+  function finish(){
+    document.querySelectorAll(".choice").forEach(b=>b.disabled=true);
+    document.querySelectorAll(".item").forEach(b=>b.disabled=true);
+    $("finalMessage").textContent=player===5
+      ? `🏆 恭喜【${name}】以 ${player} : ${computer} 擊敗電腦！`
+      : `💻 電腦以 ${computer} : ${player} 獲得最終勝利！`;
+    show("result");
+  }
+  function next(){
+    round++;
+    selected="none";
+    update();
+    if(player>=5 || computer>=5) finish();
+    else $("message").textContent="請選擇道具，再出拳！";
+  }
+  $("startBtn").addEventListener("click",()=>{
+    name=$("playerName").value.trim();
+    equipment=$("equipment").value.trim();
+    if(!name || !equipment){alert("請輸入冒險者名字和裝備！");return;}
+    $("welcome").textContent=`歡迎勇敢的冒險者【${name}】！你已裝備【${equipment}】，準備迎接挑戰！`;
+    hide("login"); show("play"); update();
+  });
+  document.querySelectorAll(".item").forEach(btn=>btn.addEventListener("click",()=>{
+    if(btn.disabled)return;
+    selected=btn.dataset.item; update();
+  }));
+  document.querySelectorAll(".choice").forEach(btn=>btn.addEventListener("click",()=>{
+    if(player>=5 || computer>=5)return;
+    const playerChoice=btn.dataset.choice;
+    const item=selected;
+    if(item==="magic"){
+      used.magic=true; player++;
+      $("message").textContent="🪄 必勝魔法發動！你直接獲得一勝！";
+      log(`第 ${round} 回合：使用必勝魔法，直接得一勝。`);
+      next(); return;
+    }
+    const computerChoice=choices[Math.floor(Math.random()*3)];
+    if(item==="shield")used.shield=true;
+    if(item==="crystal")used.crystal=true;
+    let result="";
+    if(item==="crystal") result=`🔮 透視水晶發動！電腦將出：${icons[computerChoice]} ${computerChoice}。 `;
+    if(playerChoice===computerChoice){
+      result+=`平手！你和電腦都出${playerChoice}，沒有人得分。`;
+    }else{
+      const win=(playerChoice==="剪刀"&&computerChoice==="布")||
+        (playerChoice==="石頭"&&computerChoice==="剪刀")||
+        (playerChoice==="布"&&computerChoice==="石頭");
+      if(win){player++;result+=`🎉 這回合你贏了！你出${playerChoice}，電腦出${computerChoice}。`;}
+      else if(item==="shield"){result+=`🛡️ 防禦護盾發動！你出${playerChoice}，電腦出${computerChoice}，電腦無法獲得這一勝！`;}
+      else{computer++;result+=`💥 這回合電腦贏了！你出${playerChoice}，電腦出${computerChoice}。`;}
+    }
+    $("message").textContent=result;
+    log(`第 ${round} 回合：你出${playerChoice}，電腦出${computerChoice}；${result}`);
+    next();
+  }));
+  $("restartBtn").addEventListener("click",()=>{
+    player=0;computer=0;round=1;selected="none";
+    used={magic:false,shield:false,crystal:false};
+    $("history").innerHTML="<li>冒險開始，祝你好運！</li>";
+    document.querySelectorAll(".choice").forEach(b=>b.disabled=false);
+    hide("result");update();$("message").textContent="先選擇道具，再出拳！";
+  });
+})();
+</script>
+</body>
+</html>
